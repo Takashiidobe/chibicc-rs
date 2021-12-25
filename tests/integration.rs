@@ -23,20 +23,7 @@ macro_rules! test_stdout {
 }
 
 test_stdout! {
-    test_10: "10", "
-  .globl main
-main:
-  mov $10, %rax
-  ret",
-    test_add_and_sub: "5+20+4-20-50+30+40", "
-  .globl main
-main:
-  mov $5, %rax
-  add $20, %rax
-  add $4, %rax
-  sub $20, %rax
-  sub $50, %rax
-  add $30, %rax
-  add $40, %rax
-  ret",
+    test_10_plus_20: "10+20", "  .globl main\nmain:\n  mov $10, %rax\n  add $20, %rax\n  ret\n",
+    test_10: "10", "  .globl main\nmain:\n  mov $10, %rax\n  ret\n",
+    test_add_and_sub: "5+20+4-20-50+30+40", "  .globl main\nmain:\n  mov $5, %rax\n  add $20, %rax\n  add $4, %rax\n  sub $20, %rax\n  sub $50, %rax\n  add $30, %rax\n  add $40, %rax\n  ret\n",
 }
