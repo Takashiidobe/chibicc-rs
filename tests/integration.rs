@@ -13,10 +13,7 @@ macro_rules! test_stdout {
                     let mut cmd = Command::cargo_bin("chibicc")?;
 
                     cmd.arg($left);
-                    cmd.assert().success().stdout(format!(
-                        "  .globl main\nmain:\n  mov ${}, %%rax\n  ret\n",
-                        $right
-                    ));
+                    cmd.assert().success().stdout($right);
 
                     Ok(())
                 }
@@ -26,5 +23,20 @@ macro_rules! test_stdout {
 }
 
 test_stdout! {
-    test_10: "10", "10",
+    test_10: "10", "
+  .globl main
+main:
+  mov $10, %rax
+  ret",
+    test_add_and_sub: "5+20+4-20-50+30+40", "
+  .globl main
+main:
+  mov $5, %rax
+  add $20, %rax
+  add $4, %rax
+  sub $20, %rax
+  sub $50, %rax
+  add $30, %rax
+  add $40, %rax
+  ret",
 }
