@@ -1,53 +1,61 @@
 use std::fmt;
 
+// Node should have a kind (op or number) and point to a left or right. If it is num, it should
+// have i32.
+
 #[derive(Debug, Eq, PartialEq)]
 enum Instruction {
     Mov(i32),
-    Add(i32),
-    Sub(i32),
+    Add(Box<Node>, Box<Node>),
+    Sub(Box<Node>, Box<Node>),
+    Mul(Box<Node>, Box<Node>),
+    Div(Box<Node>, Box<Node>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum Op {
-    Add,
-    Sub,
+    Add(Box<Node>, Box<Node>),
+    Sub(Box<Node>, Box<Node>),
+    Mul(Box<Node>, Box<Node>),
+    Div(Box<Node>, Box<Node>),
 }
 
 impl fmt::Display for Op {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Op::Add => write!(f, "{}", '+'),
-            Op::Sub => write!(f, "{}", '-'),
+            Op::Add(left, right) => write!(f, "{} + {}", left.eval(), right.eval()),
+            Op::Sub(left, right) => write!(f, "{} - {}", left.eval(), right.eval()),
+            Op::Mul(left, right) => write!(f, "{} * {}", left.eval(), right.eval()),
+            Op::Div(left, right) => write!(f, "{} / {}", left.eval(), right.eval()),
         }
     }
 }
 
-#[derive(Debug)]
-enum Token {
+#[derive(Debug, PartialEq, Eq, Clone)]
+enum Node {
     Op(Op),
     Num(i32),
 }
 
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Node {
+    fn eval(&self) -> i32 {
         match self {
-            Token::Op(op) => write!(f, "{}", op),
-            Token::Num(num) => write!(f, "{}", num),
-        }
-    }
-}
-
-impl Token {
-    fn to_i32(&self) -> i32 {
-        match self {
-            Token::Num(num) => *num,
-            Token::Op(_) => unreachable!(),
+            Node::Op(op) => match op {
+                Op::Add(left, right) => left.eval() + right.eval(),
+                Op::Sub(left, right) => left.eval() - right.eval(),
+                Op::Mul(left, right) => left.eval() * right.eval(),
+                Op::Div(left, right) => left.eval() / right.eval(),
+            },
+            Node::Num(num) => *num,
         }
     }
 }
 
 fn get_number(chars: &Vec<char>, i: &mut usize) -> i32 {
     let mut s = String::new();
+    while chars[*i].is_ascii_whitespace() {
+        *i += 1;
+    }
     while *i < chars.len() && chars[*i].is_ascii_digit() {
         s.push(chars[*i]);
         *i += 1;
@@ -55,8 +63,8 @@ fn get_number(chars: &Vec<char>, i: &mut usize) -> i32 {
     s.parse::<i32>().unwrap()
 }
 
-fn tokenize(chars: &Vec<char>) -> Vec<Token> {
-    let mut tokens = vec![];
+fn tokenize(chars: &Vec<char>) -> Vec<Node> {
+    let mut nodes = vec![];
 
     let mut i = 0;
     while i < chars.len() {
@@ -64,50 +72,67 @@ fn tokenize(chars: &Vec<char>) -> Vec<Token> {
         if c.is_ascii_whitespace() {
             i += 1;
         } else if c.is_ascii_digit() {
-            tokens.push(Token::Num(get_number(&chars, &mut i)));
+            nodes.push(Node::Num(get_number(&chars, &mut i)));
         } else if c == '+' {
-            tokens.push(Token::Op(Op::Add));
+            let last = nodes.pop().unwrap();
             i += 1;
+            nodes.push(Node::Op(Op::Add(
+                Box::new(last),
+                Box::new(Node::Num(get_number(&chars, &mut i))),
+            )));
         } else if c == '-' {
-            tokens.push(Token::Op(Op::Sub));
+            let last = nodes.pop().unwrap();
             i += 1;
+            nodes.push(Node::Op(Op::Sub(
+                Box::new(last),
+                Box::new(Node::Num(get_number(&chars, &mut i))),
+            )));
+        } else if c == '*' {
+            let last = nodes.pop().unwrap();
+            i += 1;
+            nodes.push(Node::Op(Op::Mul(
+                Box::new(last),
+                Box::new(Node::Num(get_number(&chars, &mut i))),
+            )));
+        } else if c == '/' {
+            let last = nodes.pop().unwrap();
+            i += 1;
+            nodes.push(Node::Op(Op::Div(
+                Box::new(last),
+                Box::new(Node::Num(get_number(&chars, &mut i))),
+            )));
         } else {
             eprintln!("unexpected character: '{}'", c);
             i += 1;
         }
     }
-    tokens
+    nodes
 }
 
-fn emit(tokens: Vec<Token>) -> Vec<Instruction> {
+fn emit(tokens: Vec<Node>) -> Vec<Instruction> {
     use Instruction::*;
 
-    let token_len = &tokens.len();
     let mut instructions = vec![];
-    let mut i = 0;
 
-    while &i < token_len {
-        let token = &tokens[i];
+    for token in tokens {
         match token {
-            Token::Num(num) => {
-                instructions.push(Mov(*num));
-                i += 1;
+            Node::Num(num) => {
+                instructions.push(Mov(num));
             }
-            Token::Op(op) => {
-                match op {
-                    Op::Add => {
-                        if i < token_len - 1 {
-                            instructions.push(Add(tokens[i + 1].to_i32()));
-                        }
-                    }
-                    Op::Sub => {
-                        if i < token_len - 1 {
-                            instructions.push(Sub(tokens[i + 1].to_i32()));
-                        }
-                    }
+            Node::Op(op) => match op {
+                Op::Add(left, right) => {
+                    instructions.push(Add(left.clone(), right.clone()));
                 }
-                i += 2;
-            }
+                Op::Sub(left, right) => {
+                    instructions.push(Sub(left.clone(), right.clone()));
+                }
+                Op::Mul(left, right) => {
+                    instructions.push(Mul(left.clone(), right.clone()));
+                }
+                Op::Div(left, right) => {
+                    instructions.push(Div(left.clone(), right.clone()));
+                }
+            },
         }
     }
     instructions
@@ -118,8 +143,18 @@ fn print_instructions(instructions: Vec<Instruction>) {
     for instruction in instructions {
         match instruction {
             Mov(num) => println!("  mov ${}, %rax", num),
-            Sub(num) => println!("  sub ${}, %rax", num),
-            Add(num) => println!("  add ${}, %rax", num),
+            Add(left, right) => {
+                println!("  mov ${}, %rax", left.eval() + right.eval());
+            }
+            Sub(left, right) => {
+                println!("  mov ${}, %rax", left.eval() - right.eval());
+            }
+            Mul(left, right) => {
+                println!("  mov ${}, %rax", left.eval() * right.eval());
+            }
+            Div(left, right) => {
+                println!("  mov ${}, %rax", left.eval() / right.eval());
+            }
         }
     }
 }
@@ -168,6 +203,6 @@ macro_rules! test_assembly {
 }
 
 test_assembly! {
-    twenty_plus_three: "20 + 3", vec![Mov(20), Add(3)],
-    twenty_minus_three: "20 - 3", vec![Mov(20), Sub(3)],
+    twenty_plus_three: "20 + 3", vec![Add(Box::new(Node::Num(20)), Box::new(Node::Num(3)))],
+    twenty_minus_three: "20 - 3", vec![Sub(Box::new(Node::Num(20)), Box::new(Node::Num(3)))],
 }
